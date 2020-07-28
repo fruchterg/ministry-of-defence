@@ -109,11 +109,6 @@ class DBTable(db_api.DBTable):
             raise ValueError
         if values.get(self.key_field_name):
             raise ValueError
-            # temp_dict = data_table[key]
-            # del data_table[key]
-            # data_table[values[self.key_field_name]] = temp_dict
-            # key = values[self.key_field_name]
-
         for key_value in values.keys():
             if data_table[str(key)].get(key_value) == None:
                 raise ValueError
@@ -147,62 +142,62 @@ class DBTable(db_api.DBTable):
         return Selection_criteria_list
 
     def create_index(self, field_to_index: str) -> None:
-        raise NotImplementedError
+
 
 
 class DataBase(db_api.DataBase):
 
 
-    dict_tables = {}
+    __dict_tables__ = {}
 
     def __init__(self):
-        with open("DB.csv",'r') as file:
-            db_file = csv.reader(file)
-            for row in db_file:
-                t = row[0]
-                self.dict_tables[t] = DBTable(t, row[1], row[2])
+        with shelve.open(os.path.join(db_api.DB_ROOT, "DB.db"), writeback=True) as db:
+            for key in db:
+                DataBase.__dict_tables__[str(key)] = DBTable(key, db[key][0], db[key][1])
+
 
     def create_table(self,
                      table_name: str,
                      fields: List[DBField],
                      key_field_name: str) -> DBTable:
-        #if key_field_name
-        data_table = shelve.open(f"db_files/{table_name}.db", writeback=True)
+
+        if DataBase.__dict_tables__.get(table_name):
+            return DataBase.__dict_tables__[table_name]
+        flag = 0
+        for field in fields:
+            if key_field_name == field.name:
+                flag = 1
+        if flag == 0:
+            raise ValueError
+        data_table = shelve.open(os.path.join(db_api.DB_ROOT, table_name + ".db"), writeback=True)
         data_table.close()
         db_table = DBTable(table_name, fields, key_field_name)
-        self.dict_tables[table_name] = db_table
-        #list_fields = [[field.name, field.type] for field in fields]
-        with open("DB.csv", "a",newline="") as file:
-            db_file = csv.writer(file)
-            d = [table_name, fields, key_field_name]
-            db_file.writerow(d)
+
+        DataBase.__dict_tables__[table_name] = db_table
+        with shelve.open(os.path.join(db_api.DB_ROOT, "DB.db"), writeback=True) as db:
+            db[table_name] = [fields, key_field_name]
         return db_table
 
     def num_tables(self) -> int:
-        return len(self.dict_tables.keys())
+        return len(DataBase.__dict_tables__.keys())
 
     def get_table(self, table_name: str) -> DBTable:
-            if None==self.dict_tables.get(table_name):
+            if None==DataBase.__dict_tables__.get(table_name):
                 raise ValueError
-            return self.dict_tables[table_name]
+            return DataBase.__dict_tables__[table_name]
 
 
     def delete_table(self, table_name: str) -> None:
-        os.remove(os.path.join('db_files', table_name + ".db.bak"))
-        os.remove(os.path.join('db_files', table_name + ".db.dat"))
-        os.remove(os.path.join('db_files', table_name + ".db.dir"))
-        with open('data_base.csv', 'r') as db_table:
-            reader = csv.reader(db_table)
-            # next(reader)
-            clean_rows = [row for row in reader if row[0] != table_name]
-        if clean_rows:
-            with open('data_base.csv', 'w') as db_table:
-                writer = csv.writer(db_table)
-                writer.writerow(clean_rows)
-        self.dict_tables.pop(table_name)
 
+
+        if DataBase.__dict_tables__.get(table_name):
+            for suffix in ['bak', 'dat', 'dir']:
+                os.remove(db_api.DB_ROOT.joinpath(f'{table_name}.db.{suffix}'))
+            with shelve.open(os.path.join(db_api.DB_ROOT, "DB.db"), writeback=True) as db:
+                del db[table_name]
+            DataBase.__dict_tables__.pop(table_name)
     def get_tables_names(self) -> List[Any]:
-            return list(self.dict_tables.keys())
+            return list(DataBase.__dict_tables__.keys())
 
 
 
