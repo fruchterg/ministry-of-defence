@@ -99,25 +99,10 @@ class DBTable(db_api.DBTable):
 
     def delete_records(self, criteria: List[SelectionCriteria]) -> None:
 
-        data_table = shelve.open(f"db_files/{self.name}.db")
-        for criter in criteria:
-            if not data_table[list(data_table.keys())[0]].get(criter.field_name):
-                raise ValueError
+        records_to_delete = self.query_table(criteria)
+        for record in records_to_delete:
+            self.delete_record(record[self.key_field_name])
 
-        for record_in_table in data_table.keys():
-            flag = 0
-            for record in criteria:
-                if data_table[list(data_table.keys())[0]].get(record.field_name):
-                    if record.operator == '=':
-                         record.operator = '=='
-                    try:
-                        if not eval(f'str(data_table[record_in_table][record.field_name]){record.operator}str(record.value)'):
-                            flag = 1
-                    except NameError:
-                        print("invalid Name")
-            if not flag:
-                self.delete_record(record_in_table)
-        data_table.close()
 
     def get_record(self, key: Any) -> Dict[str, Any]:
         data_table = shelve.open(f"db_files/{self.name}.db", writeback=True)
